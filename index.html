@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Extreme Tactical Dynamics · Your headlines: what works and what doesn&#39;t</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f5fa;--card:#ffffff;--ink:#10131f;--muted:#5d6475;--brand:#0113fd;--accent:#bc0104;--bad:#bc0104;--good:#2f7d4e;--line:#e1e4ee;--plain:color-mix(in srgb,var(--muted) 42%,color-mix(in srgb,var(--accent) 40%,var(--bg)));--soft:color-mix(in srgb,var(--ink) 60%,var(--muted))}
+/* The report look (the Mokomoko recovery deck, 2026-10-02). The colors come from the client's brand as :root
+   variables, written by render.rs above this file: --bg --card --ink --muted --brand --accent --bad --good --line,
+   and two mixed from them: --plain (a quiet bar or dot) and --soft (body text a little lighter than the ink).
+
+   Two layouts:
+   - The stage (a laptop or larger): one 1280 x 720 slide at a time, scaled to fit the window, moved by keys, clicks,
+     and swipes. The stage is never scaled below 0.85, so the smallest text (16.5 px) reads at 14 px or more.
+   - The page (a phone, a tablet, a short window): every slide is a full-width section, one under the other, read by
+     scrolling. Each section animates in when it scrolls into view. Charts switch to their phone drawing.
+   The page layout's media query is the same in deck.js (PAGE): change both together. It is for screens only: a print
+   is always the stage's slides, one a page. */
+
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;overflow:hidden}
+p,li{text-wrap:pretty}
+/* Short blocks wrap balanced, so no line ends with one word alone (Will: no orphan words, 2026-09-15). */
+.tile b,.tile span,.fixes b,.fixes span,.cap,.stats span,.lead{text-wrap:balance}
+h1,h2{text-wrap:balance}
+.stage{position:absolute;left:50%;top:50%;width:1280px;height:720px;transform-origin:center}
+section{position:absolute;inset:0;padding:64px 100px;display:flex;flex-direction:column;gap:18px;opacity:0;pointer-events:none;transition:opacity .5s}
+section.active{opacity:1;pointer-events:auto}
+.kicker{font-size:16.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+h1{font-size:58px;line-height:1.08;font-weight:800;letter-spacing:-.02em;max-width:900px}
+h2{font-size:42px;line-height:1.12;font-weight:800;letter-spacing:-.02em}
+.lead{font-size:21px;line-height:1.45;color:var(--soft);max-width:1000px}
+.cap{font-size:16.5px;color:var(--muted);margin-top:6px}
+.title{justify-content:center;gap:26px}
+.title .logo{height:96px;width:auto;max-width:320px;object-fit:contain;border-radius:22px;align-self:flex-start}
+.sub{font-size:20px;color:var(--muted)}
+.anim{opacity:0;transform:translateY(18px)}
+.active .anim{animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:var(--d,0s)}
+@keyframes rise{to{opacity:1;transform:none}}
+
+/* Charts: inline SVG. Each chart is drawn twice: .big for the stage, .phone (a narrow drawing with bigger labels)
+   for the page layout. A tone class sets --c, the color its bars, line, and dots take. */
+.t-plain{--c:var(--plain)} .t-bad{--c:var(--bad)} .t-good{--c:var(--good)} .t-brand{--c:var(--brand)} .t-accent{--c:var(--accent)}
+.chart{width:100%;height:auto;overflow:visible;display:block}
+.chart.phone{display:none}
+.chart .bar{fill:var(--c);transform-box:fill-box;transform-origin:bottom;transform:scaleY(0)}
+.active .chart .bar{animation:grow .5s ease-out forwards;animation-delay:calc(.35s + var(--i)*6ms)}
+@keyframes grow{to{transform:scaleY(1)}}
+.chart .axis{font-size:14px;fill:var(--muted)}
+.chart .axis.halo{paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.chart .val{font-size:15px;font-weight:700;fill:var(--ink)}
+.chart .rowlbl{font-size:16px;fill:var(--ink)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .mark{stroke:var(--ink);stroke-dasharray:4 4;stroke-width:1.5}
+.chart .note{font-size:14px;font-weight:600;fill:var(--ink)}
+.chart .line{fill:none;stroke:var(--c);stroke-width:3;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1}
+.active .chart .line{animation:draw 2.2s ease-in-out .4s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.chart .hit{fill:transparent;cursor:crosshair}
+.chart .hov{fill:var(--c);stroke:#fff;stroke-width:3;opacity:0;pointer-events:none;transition:opacity .15s}
+.chart .hovline{stroke:var(--ink);stroke-width:1;opacity:0;pointer-events:none}
+.chart.hovering .hovline{opacity:.35} .chart.hovering .hov.on{opacity:1}
+.chart .wdot{fill:var(--c);opacity:0}
+.chart .wval{font-size:15px;font-weight:700;fill:var(--ink);opacity:0}
+.active .chart .wdot,.active .chart .wval{animation:fade .3s ease-out forwards;animation-delay:calc(.5s + var(--i)*110ms)}
+@keyframes fade{to{opacity:1}}
+.chart .hbar{fill:var(--c);transform-box:fill-box;transform-origin:left;transform:scaleX(0)}
+.active .chart .hbar{animation:growx .9s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(.5s + var(--i)*40ms)}
+@keyframes growx{to{transform:scaleX(1)}}
+.chart.small{max-width:820px}
+.chart.phone .axis,.chart.phone .note,.chart.phone .val,.chart.phone .wval{font-size:13px}
+.chart.phone .rowlbl{font-size:14px} .chart.phone .line{stroke-width:2.5}
+.tip{position:fixed;z-index:9;pointer-events:none;background:var(--ink);color:#fff;font-size:14px;font-weight:600;padding:8px 12px;border-radius:8px;white-space:nowrap;opacity:0;transform:translate(-50%,calc(-100% - 14px));transition:opacity .12s}
+.tip.on{opacity:1}
+
+/* Views of one chart with a toggle (Daily / Weekly). */
+.views{position:relative}
+.views .v{display:none} .views .v.on{display:block}
+.toggle{position:absolute;right:0;top:-58px;display:flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px;z-index:2}
+.toggle button{font:600 16.5px Inter,system-ui,sans-serif;color:var(--muted);background:none;border:0;border-radius:999px;padding:8px 18px;cursor:pointer}
+.toggle button.on{background:var(--brand);color:#fff}
+
+.stats{display:flex;align-items:center;gap:28px}
+.stats div{display:flex;flex-direction:column}
+.stats em{font-style:normal;font-size:52px;font-weight:800;letter-spacing:-.02em}
+.stats span{font-size:16.5px;color:var(--muted)}
+.stats .arrow{font-size:40px;color:var(--muted)}
+.bad,.bad em,.bad b{color:var(--bad)} .good,.good em,.good b{color:var(--good)}
+.brandtone,.brandtone em,.brandtone b{color:var(--brand)} .accenttone,.accenttone em,.accenttone b{color:var(--accent)}
+p.good,p.bad{font-size:19px;font-weight:600}
+.legend{white-space:nowrap}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-1px;background:var(--c)}
+
+/* A chart with a short list beside it. */
+.split{display:grid;grid-template-columns:3fr 1fr;gap:36px;align-items:end}
+.months{display:flex;flex-direction:column;gap:8px}
+.months .top{margin:0 0 4px}
+.months div{display:flex;justify-content:space-between;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px}
+.months span{color:var(--muted);font-size:16.5px} .months b{font-size:30px;font-weight:800}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:6px}
+.tile{--d:0s;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:8px;min-height:170px}
+.tile b{font-size:19px} .tile span{font-size:16.5px;line-height:1.4;color:var(--soft)}
+.ck{width:30px;height:30px;flex:none;border-radius:50%;background:var(--good);padding:5px}
+.ck path{fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24}
+.active .ck path{animation:tick .5s ease-out forwards;animation-delay:calc(var(--d) + .3s)}
+@keyframes tick{to{stroke-dashoffset:0}}
+
+/* A section's opening slide (the client's question before its answers): the words in the middle, a little bigger. */
+.divider{justify-content:center}
+.divider h2{font-size:48px;max-width:1000px}
+.divider .lead{font-size:23px}
+
+/* A table: a list the reader checks item by item (the negatives a plan adds). Its text stays at 16.5 px, so it reads at
+   14 px on the smallest stage. */
+.list{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:16.5px;line-height:1.25}
+.list th,.list td{padding:3px 16px;text-align:left;vertical-align:top;border-top:1px solid var(--line)}
+.list thead th{border-top:0;font-weight:600;color:var(--muted)}
+.list td{color:var(--soft)}
+.list td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+.list .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.list tr.group th{background:color-mix(in srgb,var(--brand) 9%,var(--card));color:var(--brand);font-weight:700}
+.list tr.bad td{color:var(--bad)} .list tr.good td{color:var(--good)}
+
+/* Search result mock-ups. */
+.serps{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:8px}
+.serp{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:14px}
+.serp .q{border:1px solid #dadce0;border-radius:24px;padding:10px 20px;font-size:18px;color:#202124}
+.serp ol{padding-left:22px;display:flex;flex-direction:column;gap:10px}
+.serp li b{display:block;font-size:17px;color:#1a0dab;font-weight:500}
+.serp li span{font-size:16.5px;color:var(--muted)}
+.serp li.us b{color:var(--good);font-weight:700}
+
+/* Numbered steps. */
+.fixes{list-style:none;padding:0;display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.fixes li{display:flex;gap:18px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 22px}
+.fixes i{font-style:normal;font-size:17px;flex:none;width:36px;height:36px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700}
+.fixes li>div{flex:1}
+.fixes b{display:block;font-size:20px} .fixes span{font-size:16.5px;color:var(--soft);line-height:1.4}
+.fixes .when{font-style:normal;flex:none;font-size:16.5px;font-weight:600;color:var(--brand);align-self:center}
+
+nav{position:fixed;left:0;right:0;bottom:0;height:4px;background:var(--line)}
+nav i{display:block;height:100%;background:var(--brand);transition:width .4s}
+.count{position:fixed;right:18px;bottom:12px;font-size:14px;color:var(--muted)}
+.hint{position:fixed;left:18px;bottom:12px;font-size:14px;color:var(--muted)}
+
+/* The page layout: phones, tablets, short windows. Keep in step with PAGE in deck.js. */
+@media screen and (max-width:1087px),screen and (max-height:611px){
+  html,body{height:auto;overflow-x:hidden;overflow-y:visible}
+  .stage{position:static;width:auto;height:auto;transform:none!important}
+  section{position:relative;inset:auto;padding:44px 16px;gap:16px;opacity:1;pointer-events:auto;border-bottom:1px solid var(--line)}
+  section:last-child{border-bottom:0;padding-bottom:64px}
+  section.title{min-height:72vh}
+  .kicker{font-size:14px}
+  h1{font-size:36px} h2{font-size:27px;line-height:1.18}
+  .lead{font-size:17px}
+  .cap{font-size:14px}
+  .sub{font-size:16px}
+  .title .logo{height:72px;border-radius:16px}
+  .chart.big{display:none} .chart.phone{display:block}
+  .chart.small{max-width:none}
+  .chart.phone{max-width:640px}
+  .views{display:flex;flex-direction:column}
+  .toggle{position:static;align-self:flex-start;margin-bottom:12px}
+  .toggle button{font-size:15px;min-height:44px;padding:10px 20px}
+  .stats{flex-direction:column;align-items:flex-start;gap:4px}
+  .stats em{font-size:40px}
+  .stats span{font-size:14px}
+  .stats .arrow{font-size:30px;line-height:1;transform:rotate(90deg);margin:2px 0 2px 8px}
+  .split{grid-template-columns:1fr;gap:20px}
+  .months span{font-size:15px} .months b{font-size:24px}
+  .tiles{grid-template-columns:1fr;gap:10px}
+  .tile{min-height:0;padding:16px}
+  .tile b{font-size:17px} .tile span{font-size:15px}
+  section.divider{min-height:60vh;justify-content:center}
+  .divider h2{font-size:30px}
+  .divider .lead{font-size:18px}
+  .list{font-size:14px}
+  .list th,.list td{padding:6px 10px}
+  .list td:first-child{white-space:normal}
+  .serps{grid-template-columns:1fr;gap:16px}
+  .serp{padding:18px}
+  .serp li span{font-size:14px}
+  .fixes li{padding:14px 16px;gap:14px}
+  .fixes i{width:32px;height:32px}
+  .fixes b{font-size:17px} .fixes span{font-size:15px}
+  .fixes li{flex-wrap:wrap}
+  .fixes .when{font-size:14px;align-self:flex-start;margin-left:46px;width:calc(100% - 46px)}
+  p.good,p.bad{font-size:17px}
+  nav,.hint,.count{display:none}
+  .tip{white-space:normal;max-width:calc(100vw - 32px);font-size:14px}
+}
+
+/* Printed: one slide per landscape page, every slide shown, nothing moving (the still rules below), no navigation. */
+@media print{
+  @page{size:1280px 720px;margin:0}
+  html,body{height:auto;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .stage{position:static;width:1280px;height:auto;transform:none!important}
+  section{position:relative;inset:auto;width:1280px;height:720px;opacity:1;overflow:hidden;background:var(--bg);break-after:page;break-inside:avoid}
+  section:last-child{break-after:auto}
+  nav,.hint,.count,.tip,.toggle{display:none!important}
+}
+
+.still *,.still *::before,.still *::after{animation:none!important;transition:none!important}
+.still .anim{opacity:1;transform:none}
+.still .chart .bar,.still .chart .hbar{transform:none}
+.still .chart .line{stroke-dashoffset:0}
+.still .chart .wdot,.still .chart .wval{opacity:1}
+.still .ck path{stroke-dashoffset:0}
+@media print{
+*,*::before,*::after{animation:none!important;transition:none!important}
+.anim{opacity:1;transform:none}
+.chart .bar,.chart .hbar{transform:none}
+.chart .line{stroke-dashoffset:0}
+.chart .wdot,.chart .wval{opacity:1}
+.ck path{stroke-dashoffset:0}
+}
+@media (prefers-reduced-motion:reduce){
+*,*::before,*::after{animation:none!important;transition:none!important}
+.anim{opacity:1;transform:none}
+.chart .bar,.chart .hbar{transform:none}
+.chart .line{stroke-dashoffset:0}
+.chart .wdot,.chart .wval{opacity:1}
+.ck path{stroke-dashoffset:0}
+}
+</style></head>
+<body><div class="stage">
+<section class="title">
+  <img class="anim logo" style="--d:.1s" src="data:image/png;base64,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" alt="Extreme Tactical Dynamics logo">
+  <h1 class="anim" style="--d:.25s">Your headlines: what works and what doesn&#39;t</h1>
+  <p class="anim sub" style="--d:.45s">Extreme Tactical Dynamics · Digital Will Ads · October 16, 2026</p>
+</section>
+<section class="divider">
+  <p class="kicker anim">Question 1 · you asked on the Oct 13 call</p>
+  <h2 class="anim" style="--d:.1s">Which headlines perform best across the account?</h2>
+</section>
+<section>
+  <p class="kicker anim">Answer 1</p>
+  <h2 class="anim" style="--d:.1s">These 10 headlines return the most</h2>
+  <p class="lead anim" style="--d:0.20s">We read all 1,317 headlines in your search campaigns from Jul 18 to Oct 15, brand left out. These 10 have 200 clicks or more and still run.</p>
+  <div class="anim" style="--d:0.30s"><table class="list"><thead><tr><th>Headline</th><th class="num">Click rate</th><th class="num">Conv. rate</th><th class="num">ROAS</th></tr></thead><tbody><tr><td>Heavy Duty LED Light Bars</td><td class="num">5.1%</td><td class="num">2.56%</td><td class="num">4.02</td></tr><tr><td>Shop Volunteer Fire Lights</td><td class="num">18.9%</td><td class="num">1.30%</td><td class="num">3.93</td></tr><tr><td>Government-Approved Vendor</td><td class="num">7.1%</td><td class="num">1.56%</td><td class="num">3.32</td></tr><tr><td>{KeyWord: Construction Lights For Trucks}</td><td class="num">8.0%</td><td class="num">0.52%</td><td class="num">3.17</td></tr><tr><td>Work Truck Warning Lights</td><td class="num">6.2%</td><td class="num">1.39%</td><td class="num">2.85</td></tr><tr><td>5-Year Warranty Included</td><td class="num">8.2%</td><td class="num">1.50%</td><td class="num">2.82</td></tr><tr><td>Volunteer Fire LED Lights</td><td class="num">15.2%</td><td class="num">1.15%</td><td class="num">2.69</td></tr><tr><td>POV Firefighter Lights</td><td class="num">13.3%</td><td class="num">0.89%</td><td class="num">2.05</td></tr><tr><td>{KeyWord: Police LED Lights}</td><td class="num">7.1%</td><td class="num">1.15%</td><td class="num">1.93</td></tr><tr><td>Up to 80% Off</td><td class="num">7.6%</td><td class="num">1.14%</td><td class="num">1.84</td></tr></tbody></table><p class="cap">Clicks, cost and sales count every time the headline showed. An ad shows up to 3 headlines, so rows overlap. The CSV has every headline.</p></div>
+</section>
+<section class="divider">
+  <p class="kicker anim">Question 2</p>
+  <h2 class="anim" style="--d:.1s">Which headlines are not performing?</h2>
+</section>
+<section>
+  <p class="kicker anim">Answer 2</p>
+  <h2 class="anim" style="--d:.1s">These 10 return the least</h2>
+  <p class="lead anim" style="--d:0.20s">Same 200 clicks or more, still running. Most are first responder and police headlines.</p>
+  <div class="anim" style="--d:0.30s"><table class="list"><thead><tr><th>Headline</th><th class="num">Click rate</th><th class="num">Conv. rate</th><th class="num">ROAS</th></tr></thead><tbody><tr><td>First Responder Lights</td><td class="num">9.7%</td><td class="num">0.22%</td><td class="num">0.23</td></tr><tr><td>LED Lights for Work Trucks</td><td class="num">5.5%</td><td class="num">0.23%</td><td class="num">0.27</td></tr><tr><td>Easy To Install And Wire Up</td><td class="num">6.1%</td><td class="num">0.65%</td><td class="num">0.31</td></tr><tr><td>Fire &amp; Rescue LED Lights</td><td class="num">10.0%</td><td class="num">0.73%</td><td class="num">0.33</td></tr><tr><td>{KeyWord: First Responder Lights}</td><td class="num">9.8%</td><td class="num">0.24%</td><td class="num">0.37</td></tr><tr><td>Shop Fire &amp; EMS Lights</td><td class="num">11.4%</td><td class="num">1.00%</td><td class="num">0.39</td></tr><tr><td>Police LED Lights</td><td class="num">5.5%</td><td class="num">0.28%</td><td class="num">0.58</td></tr><tr><td>Up to 80 % Off</td><td class="num">8.0%</td><td class="num">0.77%</td><td class="num">0.59</td></tr><tr><td>Free Shipping</td><td class="num">8.4%</td><td class="num">0.29%</td><td class="num">0.61</td></tr><tr><td>For Police &amp; Fire Departments</td><td class="num">5.0%</td><td class="num">1.43%</td><td class="num">0.86</td></tr></tbody></table><p class="cap">Clicks, cost and sales count every time the headline showed. An ad shows up to 3 headlines, so rows overlap. The CSV has every headline.</p></div>
+</section>
+<section class="divider">
+  <p class="kicker anim">Question 3</p>
+  <h2 class="anim" style="--d:.1s">How do the PMax headlines do?</h2>
+</section>
+<section>
+  <p class="kicker anim">Answer 3</p>
+  <h2 class="anim" style="--d:.1s">PMax General&#39;s 10 most-shown headlines</h2>
+  <p class="lead anim" style="--d:0.20s">PMax mixes headlines with images and video, so its numbers are a guide, not a clean test.</p>
+  <div class="anim" style="--d:0.30s"><table class="list"><thead><tr><th>Headline</th><th class="num">Shown</th><th class="num">Click rate</th><th class="num">ROAS</th></tr></thead><tbody><tr><td>SAM Government Approved Vendor</td><td class="num">142,062</td><td class="num">0.95%</td><td class="num">1.11</td></tr><tr><td>Emergency Vehicle Lighting</td><td class="num">41,795</td><td class="num">2.59%</td><td class="num">3.03</td></tr><tr><td>Up to 80% Off</td><td class="num">41,151</td><td class="num">4.05%</td><td class="num">0.85</td></tr><tr><td>Guaranteed to Fit Your Vehicle</td><td class="num">32,385</td><td class="num">5.35%</td><td class="num">1.10</td></tr><tr><td>Extreme Emergency Lights</td><td class="num">25,222</td><td class="num">2.50%</td><td class="num">0.96</td></tr><tr><td>LED Warning Lights</td><td class="num">24,939</td><td class="num">4.93%</td><td class="num">1.07</td></tr><tr><td>For Police &amp; Fire Departments</td><td class="num">23,496</td><td class="num">3.21%</td><td class="num">2.74</td></tr><tr><td>Free Shipping On Orders $88+</td><td class="num">20,701</td><td class="num">1.71%</td><td class="num">0.05</td></tr><tr><td>LED Emergency Vehicle Lights</td><td class="num">19,427</td><td class="num">3.64%</td><td class="num">1.40</td></tr><tr><td>Emergency Lights By Profession</td><td class="num">18,259</td><td class="num">0.78%</td><td class="num">0.00</td></tr></tbody></table><p class="cap">Each row counts every time the headline showed in PMax General.</p></div>
+</section>
+<section class="divider">
+  <p class="kicker anim">Question 4</p>
+  <h2 class="anim" style="--d:.1s">Do any headlines still say 7,500 reviews?</h2>
+</section>
+<section>
+  <p class="kicker anim">Answer 4</p>
+  <h2 class="anim" style="--d:.1s">Yes, 4 headlines still say it</h2>
+  <p class="lead anim" style="--d:0.20s">They are in ads that can still run, and they showed 13,568 times in 90 days. Your count is over 25,000 now.</p>
+  <div class="anim" style="--d:0.30s"><table class="list"><thead><tr><th>Headline</th><th>Where it runs</th><th class="num">Times shown</th></tr></thead><tbody><tr><td>7,500+ Verified Reviews</td><td>PMax, 1 campaign</td><td class="num">9,275</td></tr><tr><td>Over 7,500 Verified Reviews</td><td>PMax, 1 campaign</td><td class="num">3,341</td></tr><tr><td>7,500+ Verified Reviews</td><td>search, 15 campaigns</td><td class="num">652</td></tr><tr><td>W/ Over 7,500 Verified Reviews</td><td>search, 9 campaigns</td><td class="num">300</td></tr></tbody></table><p class="cap">Headlines only; descriptions are not in this report.</p></div>
+</section>
+</div><nav><i></i></nav><div class="hint">← → or click to move</div><div class="count"></div><div class="tip"></div>
+<script>
+/* The deck's moves (the Mokomoko recovery deck, 2026-10-02).
+   - The stage (a laptop): one slide at a time, scaled to fit; arrow keys, a click (right two thirds: next, left
+     third: back), or a swipe move it. The progress bar, the counter, and the address (#3) follow.
+   - The page (a phone; the same media query as deck.css): every slide is shown, one under the other. A slide
+     animates in once it scrolls into view. Clicks and swipes do not move anything; #3 scrolls to slide 3.
+   - Charts: a hover (or a tap) shows the slot's tip, a line at the slot, and the point's dot. A toggle switches the
+     views of one chart and draws the new view in again. */
+const S = [...document.querySelectorAll('section')], stage = document.querySelector('.stage');
+const bar = document.querySelector('nav i'), cnt = document.querySelector('.count'), tip = document.querySelector('.tip');
+const PAGE = matchMedia('screen and (max-width:1087px), screen and (max-height:611px)');
+let n = 0;
+const seen = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { e.target.classList.add('active'); seen.unobserve(e.target); }
+}), { rootMargin: '0px 0px -8% 0px' });
+function fit() {
+  if (PAGE.matches) { stage.style.transform = ''; return; }
+  const s = Math.min(innerWidth / 1280, innerHeight / 720);
+  stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+function go(i) {
+  n = Math.max(0, Math.min(S.length - 1, i));
+  if (PAGE.matches) { if (n > 0) S[n].scrollIntoView({ block: 'start' }); return; }
+  S.forEach((s, j) => s.classList.toggle('active', j === n));
+  bar.style.width = ((n + 1) / S.length * 100) + '%';
+  cnt.textContent = (n + 1) + ' / ' + S.length;
+  history.replaceState(null, '', '#' + (n + 1));
+}
+function layout() {
+  fit();
+  if (PAGE.matches) S.forEach(s => { if (!s.classList.contains('active')) seen.observe(s); });
+  else { seen.disconnect(); go(n); }
+}
+addEventListener('keydown', e => {
+  if (PAGE.matches) return;
+  if (['ArrowRight', 'PageDown', ' '].includes(e.key)) go(n + 1);
+  if (['ArrowLeft', 'PageUp'].includes(e.key)) go(n - 1);
+  if (e.key === 'Home') go(0);
+  if (e.key === 'End') go(S.length - 1);
+});
+document.querySelectorAll('.toggle button').forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation();
+  const w = b.closest('.views');
+  w.querySelectorAll('.toggle button').forEach(x => x.classList.toggle('on', x === b));
+  w.querySelectorAll('.v').forEach(v => {
+    const on = v.dataset.k === b.dataset.v;
+    if (on && !v.classList.contains('on')) { const c = v.cloneNode(true); c.classList.add('on'); v.replaceWith(c); }
+    else if (!on) v.classList.remove('on');
+  });
+}));
+addEventListener('click', e => {
+  if (PAGE.matches || e.target.closest('a,button,.toggle')) return;
+  go(e.clientX > innerWidth / 3 ? n + 1 : n - 1);
+});
+let x0 = null;
+addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+addEventListener('touchend', e => {
+  if (x0 === null || PAGE.matches) { x0 = null; return; }
+  const dx = e.changedTouches[0].clientX - x0;
+  if (Math.abs(dx) > 40) go(dx < 0 ? n + 1 : n - 1);
+  x0 = null;
+});
+function hover(e) {
+  const h = e.target.closest && e.target.closest('[data-tip]');
+  document.querySelectorAll('.chart.hovering').forEach(c => { if (!h || !c.contains(h)) c.classList.remove('hovering'); });
+  if (!h) { tip.classList.remove('on'); return; }
+  const svg = h.ownerSVGElement, line = svg.querySelector('.hovline'), dot = svg.querySelector('.hov');
+  const x = +h.getAttribute('x') + (+h.getAttribute('width')) / 2;
+  svg.classList.add('hovering');
+  line.setAttribute('x1', x); line.setAttribute('x2', x);
+  if (h.dataset.cx) { dot.setAttribute('cx', h.dataset.cx); dot.setAttribute('cy', h.dataset.cy); dot.classList.add('on'); }
+  else dot.classList.remove('on');
+  tip.textContent = h.dataset.tip;
+  const half = Math.min(tip.offsetWidth / 2 + 8, innerWidth / 2);
+  tip.style.left = Math.min(Math.max(e.clientX, half), innerWidth - half) + 'px';
+  tip.style.top = e.clientY + 'px';
+  tip.classList.add('on');
+}
+addEventListener('pointermove', hover);
+addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') hover(e); });
+addEventListener('resize', fit);
+PAGE.addEventListener('change', layout);
+n = Math.max(0, Math.min(S.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
+if (PAGE.matches) { S.forEach(s => s.classList.remove('active')); }
+layout();
+if (PAGE.matches) go(n);
+/* The font changes the page's height once it is in: scroll to the slide again. */
+if (document.fonts) document.fonts.ready.then(() => { if (PAGE.matches) go(n); });
+</script></body></html>
